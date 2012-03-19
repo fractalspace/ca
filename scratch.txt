@@ -1,0 +1,120 @@
+
+# NOTES
+Do *not* create 'serial' file. instead use openssl ca -create_serial ...
+TXT_DB error number 2: , set unique_subject = no in CA_default or index.attr
+
+
+## ATTRIBUTES
+##### For root CA, cfg file should have:
+keyUsage                = critical,digitalSignature, keyCertSign, cRLSign
+and
+[crl_ext] 
+authorityKeyIdentifier=keyid:always,issuer:always
+
+######## For signing cert, cfg files should have:
+keyUsage                = critical,digitalSignature
+extendedKeyUsage        = critical,codeSigning,emailProtection
+
+#### Server certificate
+Key Usage:              Digital Signature, Non Repudiation, Key Encipherment, Data Encipherment
+Extended Key Usage:     TLS Web Server Authentication
+### Client certificate
+Key Usage:              Digital Signature, Non Repudiation, Key Encipherment
+Extended Key Usage:     TLS Web Client Authentication, Code Signing, E-mail Protection
+
+## useful
+openssl req -noout -text -in signing.req
+openssl x509 -noout -text -in signingcert.pem
+
+### Creating chain
+cat server.crt intermediate.crt ca.crt > chain.crt
+
+
+=================================================
+####  create newy key+CSR
+openssl req -config openssl_sig.cfg -new -nodes -newkey rsa:1024 -keyout sign_key.pem -out signing.req -batch
+#### Sign CSR
+openssl ca -create_serial -config openssl_sig.cfg -policy policy_anything -keyfile ..\private\ipclients_key.pem -cert ..\ipclients_ca.pem -days 1095 -out signingcert.pem -infiles signing.req
+
+# create CSR from existing key
+openssl req -new -key private\cakey.pem -out cacert.csr
+
+================================
+## New CA
+# Create a CA cert+key
+openssl req -new -nodes -config openssl.cfg -x509 -newkey rsa:2048 -keyout caXkey.pem -out caXcert.pem -days 1095
+
+# or create a CA cert from existing key
+openssl req -config openssl.cfg -new -x509 -nodes -key private\ipclients_key.pem -out cacert.pem
+
+#sign a slef signed certificate with CA
+openssl ca -verbose -config openssl.cfg -ss_cert ca1\ca1cert.pem -cert ipclients_ca.pem -keyfile private\ipclients_key.pem -policy policy_anything -out s_caXcert.pem
+#openssl ca -verbose -config openssl.cfg -days 365 -extensions v3_ca -keyfile private/ipclients_ca.pem -cert ipclients_ca.pem -out ca1-crt.pem -in ca1/ca1-req.pem
+
+===================
+# sign a data file
+# http://clientsig.ca.nortel.com/sign/upload_config_file.php
+openssl smime -sign -in ca10cert.pem -signer ipclients_ca.pem -inkey private\ipclients_key.pem -outform PEM -binary -out sig.txt
+cat ca10cert.pem sig.txt > ca10cert+s.pem
+rm -rf sig.txt
+
+#openssl smime -sign -in subca\ca10cert.pem -signer certs\ipclients_ca.pm -inkey private\ipclients_ca.pem -nocerts | openssl mime -pk7out
+
+# ============= print a cert
+openssl x509 -in cert.pem -noout -text
+
+================
+#revoke a cert
+openssl ca -config openssl.cfg -revoke subca\ca10cert.pem
+openssl ca -config openssl.cfg -gencrl -out crl.pem
+openssl crl -in tmp.crl -noout -text
+====================
+# File signing server script
+#!/bin/sh
+# $1 - Input Unsigned File
+# $2 - Signing Certificate
+# $3 - Signing Certificate Private Key
+# $4 - Output Signed File
+unsigned_file=$1
+sign_cert_file=$2
+sign_cert_pk_file=$3
+signed_file=$4
+# Setup temporary files
+tmp_signature_file="/tmp/resource$$.tmp"
+# Create a detached signature
+openssl smime -sign -in ${unsigned_file} -signer ${sign_cert_file} -outform PEM -binary -inkey ${sign_cert_pk_file} -out ${signed_file}
+# Now append the signature to the unsigned file
+cat ${unsigned_file} ${tmp_signature_file} > ${signed_file}
+# Clean up
+rm -f ${tmp_signature_file}
+
+######### creat ca cert, sign ca10cert, copy to TFTP #######
+openssl req -config openssl.cfg -new -x509 -nodes -key private\ipclients_key.pem -out ipclients_ca.pem -batch
+openssl smime -sign -in ca10cert.pem -signer ipclients_ca.pem -inkey private\ipclients_key.pem -outform PEM -binary -out sig.txt
+cat ca10cert.pem sig.txt > s_ca10cert.pem
+del sig.txt
+cp -r {s_ca10cert.pem,ipclients_ca.pem} d:\tftproot
+
+#########
+# create just private key
+openssl genrsa -des3 -out ca.key 4096
+# generate a cert from existing private key
+openssl req -config openssl.cfg -new -x509 -nodes -key private\ipclients_key.pem -out cacert.pem
+# generate a public key from private key
+openssl x509 -pubkey -in ipclients_ca.pem -noout
+
+## fingerprint
+openssl x509 -fingerprint -in ipclients_ca.pem -noout
+
+## PKCS7 out
+openssl pkcs7 -text -in demo.sig -print_certs -noout
+
+#################### Conversion
+openssl x509 -in Cert-Server1.pem -inform PEM -out Cert-Server1.der -outform DER
+openssl rsa -in Key-Server1.pem -inform PEM -out Key-Server1.key -outform DER
+
+openssl pkcs12 -export -inkey Key-Client1.pem -in Cert-Client1.pem -out Client1-1.p12 -name "IP ClientsDevice1"
+
+#with root ca, as chain.
+openssl pkcs12 -export -in Cert-Server1.pem -inkey Key-Server1.pem -certfile ipclients_ca.pem -out Server1.p12 -name "IP Clients Dev Server1"
+openssl pkcs12 -info -in Client1.p12 > Client1.p12.pem

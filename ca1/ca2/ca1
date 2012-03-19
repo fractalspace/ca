@@ -1,0 +1,15 @@
+
+set CA_PATH= \CA\ca
+set name=%1
+@echo %name%
+openssl req -config opensslcaN.cfg -new -nodes -newkey rsa:1024 -keyout %name%key.pem -out %name%.req -subj "/C=CA/ST=Ontario/L=Belleville/O=Nortel/OU=IP Clients/CN=IP Clients Design Server 1/emailAddress=smahmood@nortel.com" -batch
+openssl req -noout -text -in %name%.req
+
+openssl ca -create_serial -config opensslcaN.cfg -policy policy_anything -keyfile %CA_PATH%\private\ipclients_key.pem -cert %CA_PATH%\ipclients_ca.pem -days 1095 -infiles %name%.req -outform PEM -out %name%cert.pem
+
+@REM rm -rf %name%.req
+
+openssl x509 -noout -text -in %name%cert.pem
+
+cat %name%cert.pem
+

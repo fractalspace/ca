@@ -1,0 +1,76 @@
+##================================================================
+##============== Example OpenSSL configuration file ==============
+##================================================================
+
+#  References:
+#
+#  /etc/ssl/openssl.conf
+#  http://www.openssl.org/docs/apps/config.html
+#  http://www.openssl.org/docs/apps/x509v3_config.html
+
+[ ca ]
+default_ca              = CA_default
+
+[ CA_default ]
+certificate             = cacert.pem
+private_key             = cakey.pem
+database                = index
+serial                  = serial
+
+new_certs_dir           = newcerts
+default_crl_days        = 60
+default_days            = 730
+default_md              = sha1
+policy                  = ca_policy
+x509_extensions         = v3_usr
+crlnumber               = crlnumber	# where $dir/crlnumber is the path to a file containing a crl number that is incremented
+crl_extensions          = crl_ext
+
+
+[ ca_policy ]
+countryName             = optional
+stateOrProvinceName     = optional
+organizationName        = match
+organizationalUnitName  = optional
+commonName              = supplied
+emailAddress            = optional
+
+[ req ]
+distinguished_name      = IP Clients Design
+x509_extensions         = v3_ca
+
+[ IP Clients Design ]
+countryName             = CA
+countryName_min         = 2
+countryName_max         = 2
+stateOrProvinceName     = Ontario
+localityName            = Belleville
+0.organizationName      = Nortel
+organizationalUnitName  = IP Clients
+
+commonName              = IP Clients Design
+commonName_max          = 64
+emailAddress            = smahmood@nortel.com
+emailAddress_max        = 64
+
+countryName_default             = CA
+stateOrProvinceName_default     = Ontario
+localityName_default            = Belleville
+0.organizationName_default      = Nortel
+organizationalUnitName_default  = IP Clients
+commonName_default              = IP Clients Design
+emailAddress_default            = smahmood@nortel.com
+
+[ v3_ca ]
+basicConstraints        = CA:TRUE
+subjectKeyIdentifier    = hash
+authorityKeyIdentifier  = keyid:always,issuer:always
+
+[ v3_usr ]
+basicConstraints        = CA:FALSE
+subjectKeyIdentifier    = hash
+authorityKeyIdentifier  = keyid,issuer
+
+[crl_ext] 
+authorityKeyIdentifier=keyid:always,issuer:always
+
